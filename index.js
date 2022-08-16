@@ -3,12 +3,14 @@ const intents = ["GUILDS", "GUILD_MEMBERS", "GUILD_MESSAGES", "GUILD_PRESENCES",
 const client = new Client({ intents: intents, ws: {intents: intents}, partials: ["MESSAGE", "USER", "CHANNEL", "REACTION"]});
 const mysql = require('mysql');
 
+const Auth = require('./bin/Auth');
+const auth = new Auth();
+
 const Agent = require('./bin/Agent')
-const Auth = require('./bin/Auth')
 const Api = require('./bin/Api')
 const Message = require('./bin/Message')
 const Candidature = require('./bin/Candidature')
-const auth = new Auth();
+
 const db = mysql.createConnection(auth.database())
 
 
