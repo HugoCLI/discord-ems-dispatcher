@@ -12,9 +12,9 @@ class Message {
     }
 
     leave(type, object) {
-        const title = `Matricule ${object.matricule} ${type === "server" ? "a quitté le serveur" : "n'est plus E.M.S"}`;
+        const title = `Matricule ${object.matricule} (${object.displayName}) ${type === "server" ? "a quitté le serveur" : "n'est plus E.M.S"}`;
         const embeds = new MessageEmbed().setColor('#E04C4C').setTitle(title).setDescription(`La détection automatique a détecté que <@${object.id}> n'est plus E.M.S `);
-        client.channels.cache.get(channels.general).send({embeds: [embeds]});
+        client.channels.cache.get('1008874948544168067').send({embeds: [embeds]});
     }
 
     profil(interaction, count, today) {
@@ -26,6 +26,16 @@ class Message {
             .addField('Cette semaine', `${count} réanimations`, true)
             .setImage('https://i.goopics.net/6e9pt2.png')
         interaction.reply({embeds: [embeds], ephemeral: true});
+    }
+
+    help(message) {
+        const embeds = new MessageEmbed()
+            .setColor('#0099ff')
+            .setTitle(':information_source:   Emergency Medical Service')
+            .setDescription("Version autorisé pour `EMS-DynastyRP` sous l'autorité <@270604640536625153>")
+            .addField("GitHub Creator",  `[@HugoCLI](https://github.com/HugoCLI/discord-ems-dispatcher)`, true)
+            .addField('Discord Creator', `Hyugo#8834`, true)
+        message.channel.send({content: `<@${message.author.id}>`, embeds: [embeds]});
     }
 
     recap(id, time_service, moy_rea, count) {
@@ -44,17 +54,18 @@ class Message {
 
         for (const [key, value] of Object.entries(agents)) {
             const matricule = value.agent.matricule < 10 ? "0" + value.agent.matricule : value.agent.matricule;
-            const radio = value.radio ? value.radio : "-";
             const id = value.id ? value.id : "-";
+            let radio = "-";
+            if(value.agent.steam) radio = value.agent.steam;
             let space = "";
             for(let i = 0; i < 65 - radio.length * 2; i++) space+=" ";
 
             if(value.status.is_online && !value.status.is_service) {
-                _online += `${_tab}**${matricule}** ${_tab} ID    **${id}** ${_tab}    RA  **${radio}** ${space}<@${key}>\n`;
+                _online += `${_tab}**${matricule}** ${_tab} ID    **${id}** ${_tab}    RA  **${value.agent.steam}** ${space}<@${key}>\n`;
                 _online_count +=1
             }
             if(value.status.is_online && value.status.is_service) {
-                _service += `${_tab}**${matricule}** ${_tab} ID    **${id}** ${_tab}    RA  **${radio}** ${space}<@${key}>\n`;
+                _service += `${_tab}**${matricule}** ${_tab} ID    **${id}** ${_tab}    RA  **${value.agent.steam}** ${space}<@${key}>\n`;
                 _service_count +=1
             }
         }

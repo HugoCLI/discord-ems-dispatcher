@@ -28,14 +28,31 @@ db.connect(function (err) {
     console.log("mysql:3306: emsdispatcher connected ");
 
 });
+
+const changeText = (title, detail, state) => {
+        const activity = {
+            name: 'Depression',
+            type: 'STREAMING',
+            details: 'discord.gg/inviteCode',
+            state: state,
+            timestamps: {
+                start: Date.now(),
+            },
+        };
+        client.user.setPresence({
+            pid: process.pid,
+            activity: activity,
+            status: 'online',
+        });
+}
+
 const changeActivity = async () => {
     let rea = 0;
     await db.query(`SELECT SUM(rea) as count FROM services WHERE archived = 0`, async function (err, result) {
         rea = result.length > 0 ? result[0].count : 0;
 
         let count = 0;
-        for (const [key, value] of Object.entries(agents))
-            if(value.status.is_service) count+=1;
+        for (const [key, value] of Object.entries(agents))  if(value.status.is_service) count+=1;
 
         const agent = "agent" + (count > 1 ? "s" : "");
 
@@ -44,9 +61,6 @@ const changeActivity = async () => {
             client.channels.cache.get('919412539492798515').setName("🚑 " + count + " " + agent + ' en service');
             if(!api.status()) client.user.setActivity(count + " " + agent + ' en service', {type: 'WATCHING'});
             else client.user.setActivity("attendre DynastyRP FA", {type: 'PLAYING'});
-            setTimeout(async () => {
-                client.user.setActivity("l'objectif à "+(100 / 10000 * rea).toFixed(0)+"% terminé", {type: 'WATCHING'});
-            }, 7500)
         }, 7500)
     });
 }
@@ -78,9 +92,10 @@ client.on("ready", async () => {
     api.get(agents);
     setInterval(() => api.get(agents), 10000);
     setInterval(() => api.hierarchie(agents), 60000);
+    setInterval(() => api.logs(agents), 30000);
     changeActivity();
     message.refreshService(agents);
-    setInterval(() => changeActivity(), 22500);
+    setInterval(() => changeActivity(), 15000);
     setInterval(() => message.refreshService(agents), 7500)
 })
 
@@ -119,23 +134,30 @@ client.on('presenceUpdate', async (oldMember, newMember) => {
     if(agents[user_id]) {
         let before = false;
         let after = false;
+        let state = null;
         if(newMember && newMember.activities && newMember.activities.length > 0)
             for(let i = 0; i < newMember.activities.length; i++) {
-                if (newMember.activities[0].name === "DynastyRP")
+                if (newMember.activities[0].name === "DynastyRP") {
                     after = true;
+                    state = newMember.activities[0].state ? newMember.activities[0].state.split(' ')[0] : null;
+                }
             }
 
         if(oldMember && oldMember.activities && oldMember.activities.length > 0)
             for(let i = 0; i < oldMember.activities.length; i++)
-                if(oldMember.activities[0].name === "DynastyRP")
+                if(oldMember.activities[0].name === "DynastyRP") {
                     before = true;
+                    state = oldMember.activities[0].state ? oldMember.activities[0].state.split(' ')[0] : null;
+                }
 
         if(!after && agents[user_id].status.last_refresh + 60000 < new Date().getTime()) {
             console.log(agents[user_id].agent.displayName + " disconnect")
+            agents[user_id].set('id', state);
             return agents[user_id].setOffline();
         }
 
         if(after) {
+            agents[user_id].set('id', state);
             console.log(agents[user_id].agent.displayName + " connected")
             return agents[user_id].setOnline();
         }
@@ -151,6 +173,9 @@ client.on('message', async msg => {
     const user_id = msg.author.id;
     const mention = `<@${user_id}>`;
     const args = msg.content.split(" ").slice(1);
+    if(command === "help" || command === "version") return message.help(msg);
+
+
     if(command === "setagent") {
         let number = args[0];
         db.query(`SELECT * FROM agents WHERE agent_id = '${msg.author.id}' AND archived = 0`, async function (err, result) {
@@ -184,9 +209,13 @@ client.on('message', async msg => {
     if(!agents[user_id].agent.is_admin) return;
     if(command === "salaire") agents[user_id].command.salaire(msg);
     if(command === "view") agents[user_id].command.view(msg, args[0]);
+    if(command === "reset") agents[user_id].command.reset(msg);
+    if(command === "logs") agents[user_id].command.logs(msg);
+    if(command === "close") candidature.close(msg);
     if(command === "warn") agents[user_id].command.warn(msg, args[0], agents);
     if(command === "reunion") agents[user_id].command.reunion(msg, agents);
     if(command === "reunionstop") agents[user_id].command.reunionstop(msg, agents);
+    if(command === "recrutement") candidature.recrutement(msg, args[0]);
 
 
 });

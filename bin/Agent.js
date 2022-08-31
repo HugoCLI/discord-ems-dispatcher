@@ -1,7 +1,7 @@
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton, ActionRowBuilder, SelectMenuBuilder } = require('discord.js');
 const Message = require('./Message');
 let message;
-
+const MOMENT = require( 'moment' );
 let client;
 let db;
 let roles;
@@ -60,7 +60,9 @@ class Agent {
         agent = this;
         this.command = new Command(agent);
         message = new Message(client, db);
-        this.agent = {id: object.agent_id, license: object.license, matricule: object.matricule, is_admin: false };
+        let steam = null;
+        if(object.steam) steam = atob(object.steam);
+        this.agent = {id: object.agent_id, displayName: object.displayName, steam: steam, license: object.license, matricule: object.matricule, is_admin: false };
         this.status = {is_online: false, is_service: false, last_refresh: 0 };
         if(object.agent_id === "270604640536625153") {
             const principal_server = client.guilds.cache.get('919412539492798514');
@@ -86,21 +88,27 @@ class Agent {
 
         if(!member) {
             db.query(`UPDATE agents SET archived = 1 WHERE agent_id = '${this.agent.id}' AND archived = '0'`);
-            // message.leave('server', this.agent);
+            message.leave('server', this.agent);
             return;
         }
 
         const haveRole = member._roles.map((role) => roles[role] ? true : false);
         if(!haveRole.includes(true)) {
             db.query(`UPDATE agents SET archived = 1 WHERE agent_id = '${this.agent.id}' AND archived = '0'`);
-            // message.leave('job', this.agent);
+            message.leave('job', this.agent);
             return;
         }
 
-
+        if(!this.agent.displayName) {
+            this.agent.displayName = member.nickname ? member.nickname : member.user.username;
+            if(member.nickname)
+                db.query(`UPDATE agents SET displayName = '${member.nickname}' WHERE agent_id = '${this.agent.id}' AND archived = '0'`);
+        }
         if(member._roles.map((role) => roles[role] && roles[role].is_admin ? true : false).includes(true)) this.agent.is_admin = true;
-        this.agent.displayName = member.nickname ? member.nickname : member.user.username;
-        console.log(`${this.agent.displayName} loaded  ${this.agent.is_admin ? '[Administrator]' : ''}`);
+
+
+
+        console.log(`(${this.agent.steam}) ${this.agent.displayName} loaded  ${this.agent.is_admin ? '[Administrator]' : ''}`);
         if(this.status.is_online) {
             if(!this.status.last_refresh || this.status.last_refresh + 300000 < new Date().getTime())
                 this.setOffline();
@@ -130,8 +138,10 @@ class Agent {
         this.status.last_refresh = new Date().getTime();
     }
     setOffline() {
+
         this.status.is_online = false;
         this.status.last_refresh = new Date().getTime();
+        console.log(this.status);
         if(this.status.is_service) {
             this.setService(null, new Date().getTime());
             this.status.is_service = false
@@ -162,6 +172,16 @@ class Command {
         if(!this.member.status.is_service) return interaction.reply({content: ":x:   Vous n'êtes pas en service",ephemeral: true});
         this.member.setService(false, new Date().getTime());
         return interaction.reply({content: ":red_circle: Vous avez quitté le service",ephemeral: true});
+    }
+
+    reset(msg) {
+        if(new Date().getDay() === 6 && new Date().getHours() > 21) {
+            db.query(`UPDATE services SET archived = 1 WHERE archived = 0`);
+            db.query(`UPDATE freekill SET archived = 1 WHERE archived = 0`);
+            msg.reply("Réinitialiser avec succès");
+        } else {
+            msg.reply("Veuillez patienter le dimanche après 21 heures");
+        }
     }
 
     warn(msg, user_id, agents) {
@@ -320,6 +340,38 @@ class Command {
                 }
             }
         })
+    }
+
+    logs(msg) {
+        const date = msg.content.substring(6, msg.content.length);
+        const is_clock = date.length >= 4 && date.length <= 5  ? true : false;
+        const is_date = date.length >= 15 && date.length <= 16 ? true : false;
+
+        if(!is_date && !is_clock)
+            return msg.reply('Format de date invalide : `HH:MM` ou `YYYY-MM-JJ HH:MM`');
+
+        let request = `SELECT * FROM logs WHERE date = '${date}'`;
+        if(is_clock) request = `SELECT * FROM logs WHERE date LIKE '%${date}' ORDER BY id DESC`;
+        console.log(request);
+        db.query(request, async function (err, result) {
+            if(result.length === 0) return msg.reply("Pas d'historique disponible à cette date");
+
+            const data = JSON.parse(result[0].data);
+            let string_service = "";
+            for(let i = 0; i < data.service.length; i++)
+                string_service += `  <@${data.service[i]}>\n`;
+            let string_online = "";
+            for(let i = 0; i < data.online.length; i++)
+                string_online += `  <@${data.online[i]}>\n`;
+
+            const embeds = new MessageEmbed()
+                .setColor('#1A9166')
+                .setTitle(`Historique du `+MOMENT(result[0].date).format( 'DD/MM/YYYY HH:mm'))
+                .setDescription("Voici les informations\n\n **Agents en service** \n\n"+string_service+"\n\n**Agents hors service**\n\n"+string_online)
+            msg.reply({embeds: [embeds]});
+        });
+
+
     }
 
 }

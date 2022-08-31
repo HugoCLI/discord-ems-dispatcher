@@ -1,10 +1,20 @@
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton, ActionRowBuilder, SelectMenuBuilder } = require('discord.js');
 const Message = require('./Message');
+const fs = require('fs-extra');
+
 let message;
 let client;
 let roles;
 let db;
 let recrutement = false;
+fs.readFile(__dirname + "/data/recrutement.db", 'utf8', (err, data) => {
+    if (err) return;
+    recrutement = data === "true" ? true : false;
+    console.log("Recrutement is "+recrutement);
+});
+
+
+
 class Candidature {
     constructor(objClient, objDb, objRoles) {
         client = objClient;
@@ -187,6 +197,7 @@ class Candidature {
                         );
 
                     let message = await client.channels.cache.get('1006696675965927494').send({
+                        content: '<@&995085752620826747> <@&919422146101526598>',
                         components: [row],
                         embeds: [embeds]
                     });
@@ -202,19 +213,19 @@ class Candidature {
 
             if (!data.age) {
                 type += "age";
-                text = "Quel âge avez-vous ?";
+                text = "Quel âge avez-vous ? (Dans la vraie vie)";
             } else if (!data.prenom) {
                 type += "prenom";
                 text = "Quel est votre prénom en jeu ? (Uniquement votre PRENOM) ";
             } else if (!data.nom) {
                 type += "nom";
-                text = "Quel est votre nom en jeu ?";
+                text = "Quel est votre nom en jeu ? (Uniquement votre NOM)";
             } else if (!data.illegal) {
                 type += "illegal";
                 text = "Faite vous de l'illégal ?";
             } else if (!data.disponibilite) {
                 type += "disponibilite";
-                text = "Quel sont vos disponibilités, horaires et jours de la semaine ?";
+                text = "Quels sont vos disponibilités, horaires et jours de la semaine ?";
             } else if (!data.motivation) {
                 type += "motivation";
                 text = "Quels sont vos motivations ?";
@@ -325,6 +336,42 @@ class Candidature {
         }
     }
 
+    recrutement(msg, type) {
+        if(type !== "on" && type !== "off") return msg.reply("À utilisez `?recrutement <on/off>`");
+        const is_active = type === "on" ? true : false;
+        if(recrutement === is_active) return msg.reply(`Déjà défini sur ${type}`);
+        fs.writeFile(__dirname + "/data/recrutement.db", is_active.toString(), function(err) {
+            console.log(err)
+           if(err) return msg.reply("Error");
+           msg.reply(`Changé avec succès sur ${type}`);
+            recrutement = is_active
+           if(is_active) {
+               const embeds = new MessageEmbed()
+                   .setColor('#1864E2')
+                   .setTitle(`Les recrutements sont ouverts`)
+                   .setDescription("Rendez-vous dans <#1006849866640658433> pour postuler.")
+
+               client.channels.cache.get("919414491609956382").send({
+                   content: '@everyone',
+                   embeds: [embeds]
+               });
+           }
+        });
+    }
+
+    close(msg) {
+        const channel = msg.channelId;
+        db.query(`SELECT * FROM candidatures  WHERE channel_id = '${channel}'`, async function (err, result) {
+            if(result.length > 0) {
+                db.query(`UPDATE candidatures SET close = 1 WHERE channel_id = '${channel}'`);
+                const targetChannel = msg.guild.channels.cache.get(channel);
+                targetChannel.send("Channel supprimé avec succès");
+                setTimeout(() => {
+                    targetChannel.delete();
+                }, 5000)
+            }
+        });
+    }
 
 
 }

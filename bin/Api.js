@@ -1,10 +1,13 @@
 const axios = require('axios');
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton, ActionRowBuilder, SelectMenuBuilder } = require('discord.js');
 let down = false;
+const MOMENT = require( 'moment' );
+
 
 let client;
 let roles;
 let db;
+
 class Api {
     constructor(objClient, objDb, objRoles) {
         client = objClient;
@@ -28,7 +31,9 @@ class Api {
                             agents[discord].setOnline();
                             online.push(discord);
                             agents[discord].set('id', value.id);
-                            agents[discord].set('radio', value.name);
+                            if(!agents[discord].agent.steam || value.name !== agents[discord].agent.steam)
+                                db.query(`UPDATE agents SET steam = '${btoa(value.name)}' WHERE agent_id = '${agents[discord].agent.id}' AND archived = '0'`);
+                            agents[discord].agent.steam = value.name;
                         }
                     }
 
@@ -99,6 +104,26 @@ class Api {
         client.guilds.cache.get('919412539492798514').channels.cache.get('998315742644674610').messages.fetch('1005582354577891388').then(message => message.edit({
             embeds: [embeds]
         }));
+    }
+
+    async logs(agents) {
+        let count = 0;
+        const datetime = MOMENT().format( 'YYYY-MM-DD HH:mm' );
+        let logs = {online: [], service: []};
+        for (const [key, value] of Object.entries(agents)) {
+            if(value.status.is_service) {
+                logs.service.push(key)
+            } else if (value.status.is_online) {
+                logs.online.push(key)
+                count+=1;
+            }
+        }
+        db.query(`SELECT * FROM logs WHERE date = '${datetime}'`, async function (err, result) {
+            if(result.length > 0) return;
+                db.query(`INSERT INTO logs( date, data ) VALUES ( '${datetime}', '${JSON.stringify(logs)}')`);
+                console.log(datetime + ` saved. Online: ${logs.online.length}       Service: ${logs.service.length}`);
+        });
+
     }
 }
 
